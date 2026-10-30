@@ -1,0 +1,21 @@
+
+========== REGDATA ENGINE PROCESSING REPORT ==========
+
+Total records processed : 173
+Clean records           : 143
+Quarantined records     : 30
+
+Clean percentage        : 82.66%
+Quarantined percentage  : 17.34%
+
+High-value transactions: 84
+
+Data Quality Issues:
+invalid_timestamp                  : 4
+duplicate_transaction_id           : 5
+missing_merchant                   : 8
+missing_account                    : 3
+non_positive_amount                : 8
+unsupported_currency               : 2
+
+=====================================================
