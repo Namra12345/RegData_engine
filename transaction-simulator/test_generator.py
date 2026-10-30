@@ -1,132 +1,106 @@
 
-import json
-import time
-import random
-from collections import Counter
-from generator import generate_transaction
+import re
+import unittest
+from datetime import datetime
 
-
-# -------------------------------
-# CONFIGURATION
-# -------------------------------
-
-DURATION_SECONDS = 30
-
-MIN_RECORDS_PER_SECOND = 30
-MAX_RECORDS_PER_SECOND = 40
-
-OUTPUT_FILE = "generated_transactions.jsonl"
-
-
-# -------------------------------
-# STATISTICS
-# -------------------------------
-
-total_records = 0
-clean_records = 0
-flawed_records = 0
-
-issue_counts = Counter()
-actual_duplicate_ids = Counter()
-
-start_time = time.monotonic()
-
-
-# -------------------------------
-# GENERATION
-# -------------------------------
-
-print("\nStarting Synthetic Transaction Generator")
-print("-----------------------------------------")
-
-with open(OUTPUT_FILE, "w", encoding="utf-8") as file:
-
-    try:
-        for second in range(DURATION_SECONDS):
-
-            target_count = random.randint(
-                MIN_RECORDS_PER_SECOND,
-                MAX_RECORDS_PER_SECOND
-            )
-
-            second_start = time.monotonic()
-
-            for _ in range(target_count):
-
-                transaction, is_clean, issue = generate_transaction()
-
-                # Save transaction as JSONL
-                file.write(json.dumps(transaction) + "\n")
-
-                total_records += 1
-                actual_duplicate_ids[transaction["transaction_id"]] += 1
-
-                if is_clean:
-                    clean_records += 1
-                else:
-                    flawed_records += 1
-                    issue_counts[issue] += 1
-
-            # Display progress
-            print(
-                f"Second {second + 1:02d}: "
-                f"Generated {target_count} transactions"
-            )
-
-            # Maintain approximately one-second intervals
-            elapsed = time.monotonic() - second_start
-            remaining = 1.0 - elapsed
-
-            if remaining > 0:
-                time.sleep(remaining)
-
-    except KeyboardInterrupt:
-        print("\nGeneration stopped by user.")
-
-
-# -------------------------------
-# FINAL REPORT
-# -------------------------------
-
-total_time = time.monotonic() - start_time
-
-duplicate_ids = {
-    transaction_id: count
-    for transaction_id, count in actual_duplicate_ids.items()
-    if count > 1
-}
-
-print("\n========== GENERATION REPORT ==========")
-
-print(f"Total records generated : {total_records}")
-print(f"Clean records           : {clean_records}")
-print(f"Flawed records          : {flawed_records}")
-
-print(
-    f"Actual clean percentage : "
-    f"{(clean_records / total_records * 100):.2f}%"
-    if total_records else "Actual clean percentage : 0%"
+from generator import (
+    SCHEMA_FIELDS,
+    generate_record,
+    generate_dataset,
 )
 
-print(
-    f"Actual flawed percentage: "
-    f"{(flawed_records / total_records * 100):.2f}%"
-    if total_records else "Actual flawed percentage: 0%"
-)
 
-print(f"Total execution time    : {total_time:.2f} seconds")
-print(f"Average generation rate : {total_records / total_time:.2f} records/sec"
-      if total_time else "Average generation rate : 0")
+class TestRegDataGenerator(unittest.TestCase):
 
-print("\nData Quality Issues:")
+    def test_schema_fields(self):
+        record = generate_record()
 
-for issue, count in issue_counts.items():
-    print(f"{issue:25s}: {count}")
+        self.assertEqual(set(record.keys()), set(SCHEMA_FIELDS))
+        self.assertEqual(len(record), 17)
 
-print("\nDuplicate Transaction IDs:")
+    def test_valid_record_values(self):
+        record = generate_record()
 
-for transaction_id, count in duplicate_ids.items():
-    print(f"{transaction_id}: {count} occurrences")
+        self.assertTrue(record["event_id"].startswith("EVT-"))
+        self.assertTrue(record["transaction_id"].startswith("TXN-"))
+        self.assertTrue(record["account_id"].startswith("ACC-"))
 
-print(f"\nOutput saved to: {OUTPUT_FILE}")
-print("=======================================")
+        self.assertIsInstance(record["amount"], float)
+        self.assertGreater(record["amount"], 0)
+
+        self.assertIn(
+            record["currency"],
+            ["INR", "USD", "EUR", "GBP"]
+        )
+
+        self.assertIn(
+            record["transaction_type"],
+            ["UPI", "CARD", "BANK_TRANSFER", "PAYMENT"]
+        )
+
+        self.assertIn(record["direction"], ["DEBIT", "CREDIT"])
+
+        self.assertIn(
+            record["status"],
+            ["SUCCESS", "FAILED", "PENDING"]
+        )
+
+        self.assertIn(
+            record["source"],
+            ["MOBILE_APP", "WEB_APP", "PAYMENT_GATEWAY"]
+        )
+
+        self.assertRegex(
+            record["kyc_id"],
+            r"^[A-Z]{5}[0-9]{4}[A-Z]$"
+        )
+
+        self.assertEqual(record["schema_version"], 1)
+
+        datetime.fromisoformat(record["timestamp"])
+
+    def test_generation_count(self):
+        records, _ = generate_dataset(
+            total_records=200,
+            flawed_ratio=0.15,
+            seed=42
+        )
+
+        self.assertEqual(len(records), 200)
+
+    def test_intentionally_flawed_count(self):
+        records, injected_issues = generate_dataset(
+            total_records=200,
+            flawed_ratio=0.15,
+            seed=42
+        )
+
+        self.assertEqual(sum(injected_issues.values()), 30)
+
+    def test_clean_dataset_event_ids_are_unique(self):
+        records, _ = generate_dataset(
+            total_records=200,
+            flawed_ratio=0,
+            seed=42
+        )
+
+        event_ids = [record["event_id"] for record in records]
+
+        self.assertEqual(len(event_ids), len(set(event_ids)))
+
+    def test_transaction_ids_are_generated(self):
+        records, _ = generate_dataset(
+            total_records=100,
+            flawed_ratio=0,
+            seed=42
+        )
+
+        transaction_ids = [
+            record["transaction_id"] for record in records
+        ]
+
+        self.assertEqual(len(transaction_ids), len(set(transaction_ids)))
+
+
+if __name__ == "__main__":
+    unittest.main(verbosity=2)

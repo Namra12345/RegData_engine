@@ -1,21 +1,29 @@
 
 ========== REGDATA ENGINE PROCESSING REPORT ==========
 
-Total records processed : 173
-Clean records           : 143
-Quarantined records     : 30
+Total records processed : 468
+Clean records           : 393
+Quarantined records     : 75
+Compliance flagged      : 156
 
-Clean percentage        : 82.66%
-Quarantined percentage  : 17.34%
+Clean percentage        : 83.97%
+Quarantined percentage  : 16.03%
 
-High-value transactions: 84
+DATA QUALITY ISSUES:
+duplicate_event_id                      : 14
+invalid_direction                       : 6
+invalid_kyc_format                      : 7
+invalid_timestamp                       : 6
+missing_account_id                      : 6
+missing_counterparty_account_id         : 8
+missing_kyc_id                          : 3
+missing_merchant_id                     : 6
+non_positive_amount                     : 10
+unsupported_currency                    : 10
 
-Data Quality Issues:
-invalid_timestamp                  : 4
-duplicate_transaction_id           : 5
-missing_merchant                   : 8
-missing_account                    : 3
-non_positive_amount                : 8
-unsupported_currency               : 2
+COMPLIANCE REVIEW FLAGS:
+CROSS_BORDER_TRANSFER_REVIEW            : 104
+HIGH_VALUE_INR_REVIEW                   : 65
+LARGE_DEBIT_REVIEW                      : 34
 
 =====================================================

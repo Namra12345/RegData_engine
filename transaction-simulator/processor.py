@@ -1,8 +1,12 @@
 
-import pandas as pd
+import argparse
 import json
 import os
+import re
 from datetime import datetime, timezone
+
+import pandas as pd
+
 
 # ---------------------------------------
 # CONFIGURATION
@@ -11,249 +15,536 @@ from datetime import datetime, timezone
 INPUT_FILE = "generated_transactions.jsonl"
 OUTPUT_DIR = "output"
 
-os.makedirs(OUTPUT_DIR, exist_ok=True)
+REQUIRED_FIELDS = [
+    "event_id",
+    "transaction_id",
+    "account_id",
+    "customer_name",
+    "kyc_id",
+    "counterparty_account_id",
+    "counterparty_country",
+    "amount",
+    "currency",
+    "transaction_type",
+    "direction",
+    "source",
+    "timestamp",
+    "status",
+    "merchant_id",
+    "country",
+    "schema_version",
+]
 
 SUPPORTED_CURRENCIES = {"INR", "USD", "EUR", "GBP"}
 SUPPORTED_TYPES = {"UPI", "CARD", "BANK_TRANSFER", "PAYMENT"}
-HIGH_VALUE_THRESHOLD = 50000
+SUPPORTED_DIRECTIONS = {"DEBIT", "CREDIT"}
+SUPPORTED_SOURCES = {"MOBILE_APP", "WEB_APP", "PAYMENT_GATEWAY"}
+SUPPORTED_STATUSES = {"SUCCESS", "FAILED", "PENDING"}
+
+# ISO country codes used by this synthetic-data prototype
+SUPPORTED_COUNTRIES = {"IN", "AE", "US", "GB", "DE", "SG"}
+
+# Prototype review threshold, not a regulatory reporting threshold
+HIGH_VALUE_INR_THRESHOLD = 50000
+
+PAN_PATTERN = r"^[A-Z]{5}[0-9]{4}[A-Z]$"
+
+
+# ---------------------------------------
+# HELPER FUNCTIONS
+# ---------------------------------------
+
+def is_missing(series):
+    """Identify null, empty, or whitespace-only values."""
+    return (
+        series.isna()
+        | series.astype("string").str.strip().eq("").fillna(False)
+    )
+
+
+def normalize_name(value):
+    """
+    Standardize the display format of a name.
+    This does not establish that two name variations are the same person.
+    """
+    if pd.isna(value):
+        return None
+
+    name = str(value).strip().upper()
+    name = name.replace("_", " ")
+    name = re.sub(r"\s+", " ", name)
+
+    return name
+
+
+def add_issue(df, mask, issue_name):
+    """Add a validation issue to every matching row."""
+    mask = mask.fillna(False)
+
+    for index in df.index[mask]:
+        df.at[index, "validation_issues"].append(issue_name)
+
+
+def add_review_flag(df, mask, flag_name):
+    """Add a compliance review flag to every matching row."""
+    mask = mask.fillna(False)
+
+    for index in df.index[mask]:
+        df.at[index, "review_flags"].append(flag_name)
 
 
 # ---------------------------------------
 # 1. LOAD DATA
 # ---------------------------------------
 
-print("\n[1] Loading transaction data...")
+def process_transactions(input_file, output_dir):
 
-df = pd.read_json(INPUT_FILE, lines=True)
+    os.makedirs(output_dir, exist_ok=True)
 
-total_records = len(df)
+    print("\n[1] Loading transaction data...")
 
-print(f"Loaded {total_records} transactions")
+    df = pd.read_json(input_file, lines=True)
 
+    total_records = len(df)
 
-# ---------------------------------------
-# 2. PRESERVE ORIGINAL DATA
-# ---------------------------------------
+    if total_records == 0:
+        raise ValueError("Input file contains no transaction records.")
 
-df["original_record"] = df.apply(
-    lambda row: json.dumps(
-        row.drop(labels=["original_record"], errors="ignore").to_dict(),
-        default=str
-    ),
-    axis=1
-)
+    print(f"Records loaded: {total_records}")
 
-# Each record gets its own list of validation issues
-df["validation_issues"] = [[] for _ in range(len(df))]
+    # Preserve the original input record before transformations.
+    df["raw_record"] = df.apply(
+        lambda row: json.dumps(
+            row.to_dict(),
+            default=str
+        ),
+        axis=1
+    )
 
+    # ---------------------------------------
+    # 2. SCHEMA VALIDATION
+    # ---------------------------------------
 
-# ---------------------------------------
-# 3. DATA NORMALIZATION
-# ---------------------------------------
+    print("[2] Checking schema...")
 
-print("[2] Normalizing data...")
+    missing_schema_fields = []
 
-df["currency"] = (
-    df["currency"]
-    .astype("string")
-    .str.strip()
-    .str.upper()
-)
+    for field in REQUIRED_FIELDS:
+        if field not in df.columns:
+            df[field] = None
+            missing_schema_fields.append(field)
 
-df["transaction_type"] = (
-    df["transaction_type"]
-    .astype("string")
-    .str.strip()
-    .str.upper()
-)
+    df["validation_issues"] = [[] for _ in range(len(df))]
+    df["review_flags"] = [[] for _ in range(len(df))]
 
-df["status"] = (
-    df["status"]
-    .astype("string")
-    .str.strip()
-    .str.upper()
-)
+    for field in missing_schema_fields:
+        add_issue(
+            df,
+            pd.Series(True, index=df.index),
+            f"missing_schema_field_{field}"
+        )
 
-df["amount"] = pd.to_numeric(
-    df["amount"],
-    errors="coerce"
-)
+    # ---------------------------------------
+    # 3. NORMALIZATION
+    # ---------------------------------------
 
-df["parsed_timestamp"] = pd.to_datetime(
-    df["timestamp"],
-    errors="coerce",
-    utc=True
-)
+    print("[3] Normalizing data...")
 
+    df["normalized_customer_name"] = (
+        df["customer_name"].apply(normalize_name)
+    )
 
-# ---------------------------------------
-# 4. DATA QUALITY VALIDATION
-# ---------------------------------------
+    df["currency"] = (
+        df["currency"]
+        .astype("string")
+        .str.strip()
+        .str.upper()
+    )
 
-print("[3] Validating data quality...")
+    df["transaction_type"] = (
+        df["transaction_type"]
+        .astype("string")
+        .str.strip()
+        .str.upper()
+    )
 
-def add_issue(mask, issue_name):
-    for index in df.index[mask.fillna(False)]:
-        df.at[index, "validation_issues"].append(issue_name)
+    df["direction"] = (
+        df["direction"]
+        .astype("string")
+        .str.strip()
+        .str.upper()
+    )
 
+    df["source"] = (
+        df["source"]
+        .astype("string")
+        .str.strip()
+        .str.upper()
+    )
 
-add_issue(
-    df["transaction_id"].isna() |
-    (df["transaction_id"].astype("string").str.strip() == ""),
-    "missing_transaction_id"
-)
+    df["status"] = (
+        df["status"]
+        .astype("string")
+        .str.strip()
+        .str.upper()
+    )
 
-add_issue(
-    df["account_id"].isna() |
-    (df["account_id"].astype("string").str.strip() == ""),
-    "missing_account"
-)
+    df["country"] = (
+        df["country"]
+        .astype("string")
+        .str.strip()
+        .str.upper()
+    )
 
-add_issue(
-    df["merchant_id"].isna() |
-    (df["merchant_id"].astype("string").str.strip() == ""),
-    "missing_merchant"
-)
+    df["counterparty_country"] = (
+        df["counterparty_country"]
+        .astype("string")
+        .str.strip()
+        .str.upper()
+    )
 
-add_issue(
-    df["amount"].isna(),
-    "invalid_amount"
-)
+    df["kyc_id"] = (
+        df["kyc_id"]
+        .astype("string")
+        .str.strip()
+        .str.upper()
+    )
 
-add_issue(
-    df["amount"] <= 0,
-    "non_positive_amount"
-)
+    df["amount"] = pd.to_numeric(
+        df["amount"],
+        errors="coerce"
+    )
 
-add_issue(
-    ~df["currency"].isin(SUPPORTED_CURRENCIES),
-    "unsupported_currency"
-)
+    df["schema_version"] = pd.to_numeric(
+        df["schema_version"],
+        errors="coerce"
+    )
 
-add_issue(
-    df["parsed_timestamp"].isna(),
-    "invalid_timestamp"
-)
+    df["parsed_timestamp"] = pd.to_datetime(
+        df["timestamp"],
+        errors="coerce",
+        utc=True
+    )
 
-add_issue(
-    ~df["transaction_type"].isin(SUPPORTED_TYPES),
-    "unsupported_transaction_type"
-)
+    # ---------------------------------------
+    # 4. REQUIRED FIELD VALIDATION
+    # ---------------------------------------
 
+    print("[4] Validating required fields...")
 
-# ---------------------------------------
-# 5. DUPLICATE DETECTION
-# ---------------------------------------
+    required_text_fields = [
+        "event_id",
+        "transaction_id",
+        "account_id",
+        "customer_name",
+        "kyc_id",
+        "counterparty_account_id",
+        "counterparty_country",
+        "currency",
+        "transaction_type",
+        "direction",
+        "source",
+        "timestamp",
+        "status",
+        "merchant_id",
+        "country",
+    ]
 
-print("[4] Detecting duplicate transactions...")
+    for field in required_text_fields:
+        add_issue(
+            df,
+            is_missing(df[field]),
+            f"missing_{field}"
+        )
 
-duplicate_mask = (
-    df["transaction_id"].notna() &
-    df["transaction_id"].duplicated(keep=False)
-)
+    # ---------------------------------------
+    # 5. FIELD FORMAT VALIDATION
+    # ---------------------------------------
 
-add_issue(duplicate_mask, "duplicate_transaction_id")
+    print("[5] Validating field formats...")
 
+    add_issue(
+        df,
+        df["kyc_id"].notna()
+        & ~df["kyc_id"].str.fullmatch(PAN_PATTERN, na=False),
+        "invalid_kyc_format"
+    )
 
-# ---------------------------------------
-# 6. COMPLIANCE CHECKS
-# ---------------------------------------
+    add_issue(
+        df,
+        df["amount"].isna(),
+        "invalid_amount"
+    )
 
-print("[5] Applying compliance rules...")
+    add_issue(
+        df,
+        df["amount"].notna() & df["amount"].le(0),
+        "non_positive_amount"
+    )
 
-df["compliance_flag"] = "NONE"
+    add_issue(
+        df,
+        ~df["currency"].isin(SUPPORTED_CURRENCIES),
+        "unsupported_currency"
+    )
 
-high_value_mask = (
-    (df["amount"] > HIGH_VALUE_THRESHOLD) &
-    (df["amount"].notna())
-)
+    add_issue(
+        df,
+        ~df["transaction_type"].isin(SUPPORTED_TYPES),
+        "unsupported_transaction_type"
+    )
 
-df.loc[high_value_mask, "compliance_flag"] = "HIGH_VALUE_REVIEW"
+    add_issue(
+        df,
+        ~df["direction"].isin(SUPPORTED_DIRECTIONS),
+        "invalid_direction"
+    )
 
+    add_issue(
+        df,
+        ~df["source"].isin(SUPPORTED_SOURCES),
+        "unsupported_source"
+    )
 
-# ---------------------------------------
-# 7. CLASSIFICATION
-# ---------------------------------------
+    add_issue(
+        df,
+        ~df["status"].isin(SUPPORTED_STATUSES),
+        "unsupported_status"
+    )
 
-print("[6] Classifying transactions...")
+    add_issue(
+        df,
+        ~df["country"].isin(SUPPORTED_COUNTRIES),
+        "unsupported_country"
+    )
 
-df["processing_status"] = df["validation_issues"].apply(
-    lambda issues: "QUARANTINED" if issues else "CLEAN"
-)
+    add_issue(
+        df,
+        ~df["counterparty_country"].isin(SUPPORTED_COUNTRIES),
+        "unsupported_counterparty_country"
+    )
 
-df["processing_timestamp"] = datetime.now(
-    timezone.utc
-).isoformat()
+    add_issue(
+        df,
+        df["parsed_timestamp"].isna(),
+        "invalid_timestamp"
+    )
 
-df["validation_reason"] = df["validation_issues"].apply(
-    lambda issues: "; ".join(issues)
-)
+    add_issue(
+        df,
+        ~df["schema_version"].isin([1, 2]),
+        "unsupported_schema_version"
+    )
 
+    # ---------------------------------------
+    # 6. EVENT DEDUPLICATION
+    # ---------------------------------------
 
-clean_df = df[df["processing_status"] == "CLEAN"].copy()
+    print("[6] Detecting duplicate events...")
 
-quarantine_df = df[
-    df["processing_status"] == "QUARANTINED"
-].copy()
+    duplicate_event_mask = (
+        df["event_id"].notna()
+        & df["event_id"].duplicated(keep=False)
+    )
 
+    add_issue(
+        df,
+        duplicate_event_mask,
+        "duplicate_event_id"
+    )
 
-# ---------------------------------------
-# 8. SAVE OUTPUT
-# ---------------------------------------
+    # Repeated transaction_id values are allowed.
+    # A transaction may generate multiple distinct events.
 
-print("[7] Saving processed records...")
+    # ---------------------------------------
+    # 7. COMPLIANCE REVIEW RULES
+    # ---------------------------------------
 
-clean_df.drop(
-    columns=["validation_issues"]
-).to_csv(
-    f"{OUTPUT_DIR}/clean_transactions.csv",
-    index=False
-)
+    print("[7] Applying compliance review rules...")
 
-quarantine_df.drop(
-    columns=["validation_issues"]
-).to_csv(
-    f"{OUTPUT_DIR}/quarantined_transactions.csv",
-    index=False
-)
+    # High-value INR transaction review
+    high_value_mask = (
+        df["currency"].eq("INR")
+        & df["amount"].gt(HIGH_VALUE_INR_THRESHOLD)
+    )
 
+    add_review_flag(
+        df,
+        high_value_mask,
+        "HIGH_VALUE_INR_REVIEW"
+    )
 
-# ---------------------------------------
-# 9. GENERATE PROCESSING REPORT
-# ---------------------------------------
+    # Cross-border review
+    cross_border_mask = (
+        df["country"].notna()
+        & df["counterparty_country"].notna()
+        & df["country"].ne(df["counterparty_country"])
+        & df["transaction_type"].eq("BANK_TRANSFER")
+    )
 
-issue_counts = {}
+    add_review_flag(
+        df,
+        cross_border_mask,
+        "CROSS_BORDER_TRANSFER_REVIEW"
+    )
 
-for issues in df["validation_issues"]:
-    for issue in issues:
-        issue_counts[issue] = issue_counts.get(issue, 0) + 1
+    # Large debit review
+    large_debit_mask = (
+        df["direction"].eq("DEBIT")
+        & df["currency"].eq("INR")
+        & df["amount"].gt(HIGH_VALUE_INR_THRESHOLD)
+    )
 
-report = f"""
+    add_review_flag(
+        df,
+        large_debit_mask,
+        "LARGE_DEBIT_REVIEW"
+    )
+
+    # ---------------------------------------
+    # 8. CLASSIFICATION
+    # ---------------------------------------
+
+    print("[8] Classifying transactions...")
+
+    df["processing_status"] = df["validation_issues"].apply(
+        lambda issues: (
+            "QUARANTINED" if issues else "CLEAN"
+        )
+    )
+
+    df["compliance_status"] = df["review_flags"].apply(
+        lambda flags: (
+            "REVIEW_REQUIRED" if flags else "NO_REVIEW_FLAG"
+        )
+    )
+
+    df["validation_reason"] = df["validation_issues"].apply(
+        lambda issues: "; ".join(issues)
+    )
+
+    df["compliance_review_reasons"] = df["review_flags"].apply(
+        lambda flags: "; ".join(flags)
+    )
+
+    df["processing_timestamp"] = datetime.now(
+        timezone.utc
+    ).isoformat()
+
+    clean_df = df[
+        df["processing_status"] == "CLEAN"
+    ].copy()
+
+    quarantine_df = df[
+        df["processing_status"] == "QUARANTINED"
+    ].copy()
+
+    flagged_df = df[
+        df["review_flags"].apply(bool)
+    ].copy()
+
+    # ---------------------------------------
+    # 9. SAVE OUTPUT
+    # ---------------------------------------
+
+    print("[9] Saving output files...")
+
+    clean_df.drop(
+        columns=["validation_issues", "review_flags"]
+    ).to_csv(
+        os.path.join(output_dir, "clean_transactions.csv"),
+        index=False
+    )
+
+    quarantine_df.drop(
+        columns=["validation_issues", "review_flags"]
+    ).to_csv(
+        os.path.join(output_dir, "quarantined_transactions.csv"),
+        index=False
+    )
+
+    flagged_df.drop(
+        columns=["validation_issues", "review_flags"]
+    ).to_csv(
+        os.path.join(output_dir, "flagged_transactions.csv"),
+        index=False
+    )
+
+    # ---------------------------------------
+    # 10. PROCESSING REPORT
+    # ---------------------------------------
+
+    issue_counts = {}
+
+    for issues in df["validation_issues"]:
+        for issue in issues:
+            issue_counts[issue] = issue_counts.get(issue, 0) + 1
+
+    review_counts = {}
+
+    for flags in df["review_flags"]:
+        for flag in flags:
+            review_counts[flag] = review_counts.get(flag, 0) + 1
+
+    report = f"""
 ========== REGDATA ENGINE PROCESSING REPORT ==========
 
 Total records processed : {total_records}
 Clean records           : {len(clean_df)}
 Quarantined records     : {len(quarantine_df)}
+Compliance flagged      : {len(flagged_df)}
 
 Clean percentage        : {len(clean_df) / total_records * 100:.2f}%
 Quarantined percentage  : {len(quarantine_df) / total_records * 100:.2f}%
 
-High-value transactions: {high_value_mask.sum()}
-
-Data Quality Issues:
+DATA QUALITY ISSUES:
 """
 
-for issue, count in issue_counts.items():
-    report += f"{issue:<35}: {count}\n"
+    for issue, count in sorted(issue_counts.items()):
+        report += f"{issue:<40}: {count}\n"
 
-report += "\n=====================================================\n"
+    report += "\nCOMPLIANCE REVIEW FLAGS:\n"
 
-with open(
-    f"{OUTPUT_DIR}/processing_report.txt",
-    "w",
-    encoding="utf-8"
-) as file:
-    file.write(report)
+    for flag, count in sorted(review_counts.items()):
+        report += f"{flag:<40}: {count}\n"
 
-print(report)
-print("Processing completed successfully!")
+    report += "\n=====================================================\n"
+
+    report_path = os.path.join(
+        output_dir,
+        "processing_report.txt"
+    )
+
+    with open(report_path, "w", encoding="utf-8") as file:
+        file.write(report)
+
+    print(report)
+    print(f"Processing completed. Results saved in: {output_dir}")
+
+
+# ---------------------------------------
+# MAIN
+# ---------------------------------------
+
+if __name__ == "__main__":
+
+    parser = argparse.ArgumentParser(
+        description="RegData Engine transaction processor"
+    )
+
+    parser.add_argument(
+        "--input",
+        default=INPUT_FILE
+    )
+
+    parser.add_argument(
+        "--output",
+        default=OUTPUT_DIR
+    )
+
+    args = parser.parse_args()
+
+    process_transactions(
+        input_file=args.input,
+        output_dir=args.output
+    )
