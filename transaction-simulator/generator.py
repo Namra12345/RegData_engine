@@ -1,6 +1,7 @@
 
 import argparse
 import json
+import os
 import random
 import time
 import uuid
@@ -8,6 +9,12 @@ from collections import Counter
 from datetime import datetime, timezone
 
 from faker import Faker # type: ignore
+
+try:
+    from confluent_kafka import Producer as KafkaProducer
+    KAFKA_AVAILABLE = True
+except ImportError:
+    KAFKA_AVAILABLE = False
 
 
 fake = Faker()
@@ -192,11 +199,47 @@ def inject_flaw(record, flaw_type, existing_event_ids):
 # 4. CONTINUOUS TRANSACTION GENERATOR
 # ============================================================
 
+def make_kafka_producer(bootstrap_servers):
+    """Create a Kafka producer. Returns None if Kafka is not available."""
+    if not KAFKA_AVAILABLE:
+        print("WARNING: confluent-kafka not installed. Skipping Kafka.")
+        return None
+    producer = KafkaProducer({
+        "bootstrap.servers": bootstrap_servers,
+        "acks": 1,
+        "linger.ms": 50,
+        "compression.type": "lz4",
+    })
+    print(f"Kafka producer connected to {bootstrap_servers}")
+    return producer
+
+
+def send_to_kafka(producer, record):
+    """Wrap the record in an envelope and send to Kafka."""
+    if producer is None:
+        return
+    envelope = {
+        "schema_version": 1,
+        "event_id": record["event_id"],
+        "event_type": "transaction",
+        "source_system": "layer1_generator",
+        "produced_at": datetime.now(timezone.utc).isoformat(),
+        "payload": record,
+    }
+    producer.produce(
+        "transactions",
+        key=record["account_id"],
+        value=json.dumps(envelope),
+    )
+    producer.poll(0)
+
+
 def generate_continuously(
     output_file,
     min_rate=30,
     max_rate=40,
-    flawed_ratio=0.15
+    flawed_ratio=0.15,
+    kafka_bootstrap=None,
 ):
     """
     Continuously generate synthetic transactions.
@@ -216,6 +259,9 @@ def generate_continuously(
 
     start_time = time.perf_counter()
 
+    # Set up Kafka producer if bootstrap address provided
+    producer = make_kafka_producer(kafka_bootstrap) if kafka_bootstrap else None
+
     print("\n" + "=" * 60)
     print("       REGDATA ENGINE - TRANSACTION SIMULATOR")
     print("=" * 60)
@@ -224,6 +270,7 @@ def generate_continuously(
     print(f"Maximum generation rate : {max_rate} records/sec")
     print(f"Flawed record ratio     : {flawed_ratio * 100:.1f}%")
     print(f"Output file             : {output_file}")
+    print(f"Kafka                   : {kafka_bootstrap if kafka_bootstrap else 'disabled'}")
 
     print("\nSimulator started successfully.")
     print("Press Ctrl+C to stop generation.")
@@ -275,6 +322,9 @@ def generate_continuously(
                     # Write one transaction as one JSONL line.
                     file.write(json.dumps(record) + "\n")
 
+                    # Send to Kafka if enabled.
+                    send_to_kafka(producer, record)
+
                     # Track event IDs for duplicate injection.
                     existing_event_ids.append(record["event_id"])
 
@@ -304,6 +354,9 @@ def generate_continuously(
                 )
 
     except KeyboardInterrupt:
+
+        if producer:
+            producer.flush()
 
         duration = time.perf_counter() - start_time
 
@@ -373,6 +426,13 @@ if __name__ == "__main__":
         help="Percentage of intentionally flawed records"
     )
 
+    parser.add_argument(
+        "--kafka",
+        type=str,
+        default=None,
+        help="Kafka bootstrap server e.g. 43.205.228.22:9092"
+    )
+
     args = parser.parse_args()
 
     if args.min_rate <= 0:
@@ -388,5 +448,6 @@ if __name__ == "__main__":
         output_file=args.output,
         min_rate=args.min_rate,
         max_rate=args.max_rate,
-        flawed_ratio=args.flawed_ratio
+        flawed_ratio=args.flawed_ratio,
+        kafka_bootstrap=args.kafka,
     )
