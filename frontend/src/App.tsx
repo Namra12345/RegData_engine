@@ -14,11 +14,11 @@ import { SecurityPage } from './pages/SecurityPage';
 
 const AppLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   return (
-    <div className="flex h-screen w-screen overflow-hidden bg-gray-950 text-white fixed inset-0 m-0 p-0">
+    <div className="fixed inset-0 m-0 flex h-screen w-screen overflow-hidden bg-slate-50 text-slate-900">
       <Sidebar />
       <div className="flex flex-1 flex-col min-w-0 h-full overflow-hidden">
         <Navbar />
-        <main className="flex-1 overflow-y-auto p-8 bg-gray-950 w-full">
+        <main className="w-full flex-1 overflow-y-auto bg-slate-50 p-5 md:p-8">
           {children}
         </main>
       </div>

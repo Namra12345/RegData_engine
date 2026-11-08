@@ -25,31 +25,31 @@ export const QualityPage: React.FC = () => {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-white">Pipeline Health & Data Quality</h1>
-        <p className="text-sm text-gray-400">Real-time execution batch telemetry and quarantine error distributions.</p>
+        <h1 className="text-2xl font-bold tracking-tight text-slate-900">Pipeline Health & Data Quality</h1>
+        <p className="mt-1 text-sm text-slate-600">Real-time execution batch telemetry and quarantine error distributions.</p>
       </div>
 
       {loading ? (
-        <div className="p-8 text-center text-gray-400">Loading pipeline telemetry...</div>
+        <div className="p-8 text-center text-sm text-slate-500">Loading pipeline telemetry...</div>
       ) : (
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
           {/* Pipeline Health */}
-          <div className="rounded-xl bg-gray-900 border border-gray-800 p-6 shadow-xl">
+          <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
             <div className="flex items-center space-x-3 mb-4">
-              <Activity className="h-6 w-6 text-indigo-400" />
-              <h3 className="text-lg font-semibold text-white">Pipeline Execution Health</h3>
+              <Activity className="h-6 w-6 text-indigo-600" />
+              <h3 className="text-lg font-semibold text-slate-900">Pipeline Execution Health</h3>
             </div>
             {health.length === 0 ? (
-              <p className="text-sm text-gray-400">No health telemetry records available.</p>
+              <p className="text-sm text-slate-500">No health telemetry records available.</p>
             ) : (
               <div className="space-y-3">
                 {health.map((item: any, idx: number) => (
-                  <div key={idx} className="flex items-center justify-between rounded-lg bg-gray-800/50 p-4 border border-gray-800">
+                  <div key={idx} className="flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 p-4">
                     <div>
-                      <p className="font-semibold text-white">Batch ID: {item.batch_id || 'N/A'}</p>
-                      <p className="text-xs text-gray-400">Processed: {item.execution_time || item.timestamp || 'Recent'}</p>
+                      <p className="font-semibold text-slate-900">Batch ID: {item.batch_id || 'N/A'}</p>
+                      <p className="text-xs text-slate-500">Processed: {item.execution_time || item.timestamp || 'Recent'}</p>
                     </div>
-                    <span className="flex items-center space-x-1 rounded-full bg-emerald-500/10 px-3 py-1 text-xs font-semibold text-emerald-400 border border-emerald-500/20">
+                    <span className="flex items-center space-x-1 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
                       <CheckCircle2 className="h-3.5 w-3.5" />
                       <span>{item.status || 'SUCCESS'}</span>
                     </span>
@@ -60,22 +60,22 @@ export const QualityPage: React.FC = () => {
           </div>
 
           {/* Data Quality Metrics */}
-          <div className="rounded-xl bg-gray-900 border border-gray-800 p-6 shadow-xl">
+          <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
             <div className="flex items-center space-x-3 mb-4">
-              <ShieldAlert className="h-6 w-6 text-yellow-400" />
-              <h3 className="text-lg font-semibold text-white">Quarantine Error Distribution</h3>
+              <ShieldAlert className="h-6 w-6 text-amber-600" />
+              <h3 className="text-lg font-semibold text-slate-900">Quarantine Error Distribution</h3>
             </div>
             {metrics.length === 0 ? (
-              <p className="text-sm text-gray-400">No quarantine metrics available.</p>
+              <p className="text-sm text-slate-500">No quarantine metrics available.</p>
             ) : (
               <div className="space-y-3">
                 {metrics.map((item: any, idx: number) => (
-                  <div key={idx} className="flex items-center justify-between rounded-lg bg-gray-800/50 p-4 border border-gray-800">
+                  <div key={idx} className="flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 p-4">
                     <div>
-                      <p className="font-semibold text-white">Date: {item.quarantine_date || item.date || 'N/A'}</p>
-                      <p className="text-xs text-yellow-400">Error Type: {item.error_type || 'Validation Failure'}</p>
+                      <p className="font-semibold text-slate-900">Date: {item.quarantine_date || item.date || 'N/A'}</p>
+                      <p className="text-xs text-amber-700">Error Type: {item.error_type || 'Validation Failure'}</p>
                     </div>
-                    <span className="rounded-lg bg-gray-800 px-3 py-1 text-sm font-bold text-white border border-gray-700">
+                    <span className="rounded-lg border border-slate-200 bg-white px-3 py-1 text-sm font-bold text-slate-800">
                       {item.error_count || item.count || 0} issues
                     </span>
                   </div>
