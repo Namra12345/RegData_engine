@@ -222,5 +222,7 @@ __marimo__/
 # Private SSH keys
 RegData-key.pem
 
+# Node.js dependencies
+**/node_modules/
 
 lake.conf
