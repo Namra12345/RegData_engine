@@ -221,3 +221,6 @@ __marimo__/
 
 # Private SSH keys
 RegData-key.pem
+
+
+lake.conf
