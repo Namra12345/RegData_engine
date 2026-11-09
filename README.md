@@ -20,7 +20,7 @@ RegData Engine is an end-to-end streaming data architecture designed to ingest, 
 
 ### 1. End-to-End Data Flow Architecture
 
-![Architecture Diagram](D:\BDA\RegData Engine Architecture Flow.png)
+![Architecture Diagram](./images/RegData Engine Architecture Flow.png)
 
 ### 2. Detailed Infrastructure Setup & EC2 Distribution
 
