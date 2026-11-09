@@ -219,4 +219,8 @@ __marimo__/
 # Streamlit
 .streamlit/secrets.toml
 
+# Private SSH keys
+RegData-key.pem
+
+
 lake.conf

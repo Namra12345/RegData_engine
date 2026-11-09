@@ -1,0 +1,19 @@
+id: R2_STRUCTURING
+version: 1
+severity: HIGH
+description: Several amounts just under the high-value limit in one day
+
+sql: |
+  SELECT
+    account_id,
+    date_trunc('day', timestamp) AS window_start,
+    count(*) AS txn_count,
+    sum(CAST(amount AS double)) AS total_amount,
+    array_agg(transaction_id) AS evidence_list
+  FROM regdata.clean_transactions
+  WHERE timestamp >= TIMESTAMP '{as_of}' - INTERVAL '1' DAY
+    AND currency = 'INR'
+    AND CAST(amount AS double) >= {structuring_limit_inr} * {structuring_near_pct}
+    AND CAST(amount AS double) <  {structuring_limit_inr}
+  GROUP BY account_id, date_trunc('day', timestamp)
+  HAVING count(*) >= {structuring_min_count}
