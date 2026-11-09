@@ -38,25 +38,35 @@ The system runs across multiple isolated Amazon EC2 instances within the same VP
 
 *(Note: Replace the image markdown paths below with your actual AWS console screenshots stored in your repository assets).*
 
-### 1. Amazon S3 Warehouse Storage
-> *Description: S3 bucket `regdata-engine-storage` showing warehouse prefixes for raw, clean, quarantine, and batch metrics.*
-> ![S3 Warehouse Storage](assets/s3_warehouse.png)
+### 1. Amazon S3 Storage
+> *Description: S3 bucket `regdata-engine-storage` folders.*
+> ![S3 regdata-engine-storage](https://github.com/Namra12345/RegData_engine/blob/main/images/Screenshot%202026-11-09%20115435.png)
+> ![S3 Warehouse Storage](https://github.com/Namra12345/RegData_engine/blob/main/images/Screenshot%202026-11-09%20115537.png)
+> ![S3 governance Storage](https://github.com/Namra12345/RegData_engine/blob/main/images/Screenshot%202026-11-09%20115502.png)
 
 ### 2. AWS Glue Data Catalog
 > *Description: Glue database `regdata` and `regdata_governance` showing registered Iceberg table schemas.*
-> ![Glue Data Catalog](assets/glue_catalog.png)
+> ![regdata table](https://github.com/Namra12345/RegData_engine/blob/main/images/Screenshot%202026-11-09%20115629.png)
+> ![regdata_governance table](https://github.com/Namra12345/RegData_engine/blob/main/images/Screenshot%202026-11-09%20115650.png)
 
 ### 3. Amazon Athena SQL Queries
 > *Description: Athena query editor executing analytical views and data-quality checks.*
-> ![Athena Queries](assets/athena_queries.png)
+> ![Athena Queries](https://github.com/Namra12345/RegData_engine/blob/main/images/Screenshot%202026-11-09%20115816.png)
+> ![Athena Queries](https://github.com/Namra12345/RegData_engine/blob/main/images/Screenshot%202026-11-09%20115830.png)
+> ![Athena Queries](https://github.com/Namra12345/RegData_engine/blob/main/images/Screenshot%202026-11-09%20115856.png)
 
 ### 4. Spark Cluster Management & UI
 > *Description: Spark Master Web UI (Port 8080) showing active worker nodes and cluster resources.*
 > ![Spark Master UI](assets/spark_cluster.png)
 
-### 5. Marquez Lineage Web UI
-> *Description: Marquez Web UI (Port 3000) displaying OpenLineage dataset graphs and job executions.*
-> ![Marquez UI](assets/marquez_lineage.png)
+### 5. EC2 instances
+> *Description: running EC2 instances.*
+> ![EC2 instances](https://github.com/Namra12345/RegData_engine/blob/main/images/Screenshot%202026-11-09%20115408.png)
+
+### 6. Web UI
+> *Description: Website deployed on ec2 instance.*
+> ![Web UI](assets/marquez_lineage.png)
+> ![Web UI](assets/marquez_lineage.png)
 
 ---
 
