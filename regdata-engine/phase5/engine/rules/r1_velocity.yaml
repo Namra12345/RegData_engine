@@ -1,0 +1,16 @@
+id: R1_VELOCITY
+version: 1
+severity: MEDIUM
+description: One account with too many transactions in a single clock hour
+
+sql: |
+  SELECT
+    account_id,
+    date_trunc('hour', timestamp) AS window_start,
+    count(*) AS txn_count,
+    sum(CAST(amount AS double)) AS total_amount,
+    array_agg(transaction_id) AS evidence_list
+  FROM regdata.clean_transactions
+  WHERE timestamp >= TIMESTAMP '{as_of}' - INTERVAL '1' HOUR
+  GROUP BY account_id, date_trunc('hour', timestamp)
+  HAVING count(*) > {velocity_max_txn_per_hour}

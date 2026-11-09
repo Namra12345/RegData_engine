@@ -1,0 +1,48 @@
+# RegData Engine — Compliance Rules
+# Each rule produces one flag in the rule_flags array on clean_transactions.
+# To add a new rule: add a new entry here — no Python code change needed.
+#
+# condition_type options:
+#   col_neq_col   : flag when two columns are not equal
+#   col_gte_val   : flag when column >= threshold AND currency matches
+#   col_eq_val    : flag when column == value
+#   col_null_or_invalid_regex : flag when column is null OR doesn't match regex
+
+rules:
+
+  - name: CROSS_BORDER_TRANSFER
+    description: Transaction crosses country borders
+    condition_type: col_neq_col
+    left_col: country
+    right_col: counterparty_country
+    flag: CROSS_BORDER_TRANSFER
+
+  - name: HIGH_VALUE_REVIEW
+    description: INR transaction at or above high-value threshold
+    condition_type: col_gte_val
+    col: amount
+    threshold: 50000
+    currency_col: currency
+    currency_val: INR
+    flag: HIGH_VALUE_REVIEW
+
+  - name: FAILED_TRANSACTION
+    description: Transaction status is FAILED
+    condition_type: col_eq_val
+    col: status
+    value: FAILED
+    flag: FAILED_TRANSACTION
+
+  - name: PENDING_TRANSACTION
+    description: Transaction status is PENDING
+    condition_type: col_eq_val
+    col: status
+    value: PENDING
+    flag: PENDING_TRANSACTION
+
+  - name: KYC_MISSING
+    description: KYC ID is missing or does not match PAN format
+    condition_type: col_null_or_invalid_regex
+    col: kyc_id
+    regex: "^[A-Z]{5}[0-9]{4}[A-Z]$"
+    flag: KYC_MISSING

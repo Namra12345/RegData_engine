@@ -1,0 +1,23 @@
+id: R4_PASS_THROUGH
+version: 1
+severity: HIGH
+description: Money in then almost same amount out within 1 hour
+
+sql: |
+  SELECT
+    c.account_id,
+    date_trunc('hour', c.timestamp) AS window_start,
+    count(*) AS txn_count,
+    sum(CAST(c.amount AS double)) AS total_amount,
+    array_agg(c.transaction_id) AS evidence_list
+  FROM regdata.clean_transactions c
+  JOIN regdata.clean_transactions d
+    ON  c.account_id = d.account_id
+    AND c.direction  = 'CREDIT'
+    AND d.direction  = 'DEBIT'
+    AND d.timestamp  > c.timestamp
+    AND d.timestamp <= c.timestamp + INTERVAL '1' HOUR
+    AND ABS(CAST(d.amount AS double) - CAST(c.amount AS double))
+        <= CAST(c.amount AS double) * {pass_through_tolerance_pct}
+  WHERE c.timestamp >= TIMESTAMP '{as_of}' - INTERVAL '1' HOUR
+  GROUP BY c.account_id, date_trunc('hour', c.timestamp)

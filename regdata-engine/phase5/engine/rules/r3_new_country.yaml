@@ -1,0 +1,23 @@
+id: R3_NEW_COUNTRY
+version: 1
+severity: MEDIUM
+description: Account sends to a counterparty country not seen in the last 30 days
+
+sql: |
+  SELECT
+    t.account_id,
+    date_trunc('day', t.timestamp) AS window_start,
+    count(*) AS txn_count,
+    sum(CAST(t.amount AS double)) AS total_amount,
+    array_agg(t.transaction_id) AS evidence_list
+  FROM regdata.clean_transactions t
+  WHERE t.timestamp >= TIMESTAMP '{as_of}' - INTERVAL '1' DAY
+    AND NOT EXISTS (
+      SELECT 1
+      FROM regdata.clean_transactions h
+      WHERE h.account_id = t.account_id
+        AND h.counterparty_country = t.counterparty_country
+        AND h.timestamp >= TIMESTAMP '{as_of}' - INTERVAL '{new_country_lookback_days}' DAY
+        AND h.timestamp <  TIMESTAMP '{as_of}' - INTERVAL '1' DAY
+    )
+  GROUP BY t.account_id, date_trunc('day', t.timestamp)

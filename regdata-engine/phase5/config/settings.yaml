@@ -1,0 +1,21 @@
+runner: athena
+
+sns_topic_arn: arn:aws:sns:ap-south-1:776163183407:regdata-alerts
+
+athena:
+  region: ap-south-1
+  database: regdata
+  output_location: s3://regdata-engine-storage/athena-results/
+
+governance:
+  database: regdata_governance
+  output_location: s3://regdata-engine-storage/athena-results/
+
+thresholds:
+  velocity_max_txn_per_hour: 10
+  structuring_near_pct: 0.9
+  structuring_min_count: 3
+  structuring_limit_inr: 1000000
+  pass_through_tolerance_pct: 0.05
+  new_country_lookback_days: 30
+  freshness_max_minutes: 10
