@@ -57,7 +57,7 @@ The system runs across multiple isolated Amazon EC2 instances within the same VP
 
 ### 4. Spark Cluster Management & UI
 > *Description: Spark Master Web UI (Port 8080) showing active worker nodes and cluster resources.*
-> ![Spark Master UI](assets/spark_cluster.png)
+> ![Spark Master UI](https://github.com/Namra12345/RegData_engine/blob/main/images/Screenshot%202026-11-09%20170511.png)
 
 ### 5. EC2 instances
 > *Description: running EC2 instances.*
@@ -65,8 +65,8 @@ The system runs across multiple isolated Amazon EC2 instances within the same VP
 
 ### 6. Web UI
 > *Description: Website deployed on ec2 instance.*
-> ![Web UI](assets/marquez_lineage.png)
-> ![Web UI](assets/marquez_lineage.png)
+> ![Web UI](https://github.com/Namra12345/RegData_engine/blob/main/images/Screenshot%202026-11-09%20170941.png)
+> ![Web UI](https://github.com/Namra12345/RegData_engine/blob/main/images/Screenshot%202026-11-09%20171058.png)
 
 ---
 
@@ -96,7 +96,7 @@ regdata-engine/
 ├── config/              # Spark session and catalog configuration
 ├── processing/          # Core PySpark ETL, validation, parsing, and compliance logic
 ├── rules/               # YAML-based compliance rules (cross-border, velocity, etc.)
-├── phase5/              # Governance engine, record tracing, and report generation scripts
+├── goverance/              # Governance engine, record tracing, and report generation scripts
 ├── sql/                 # Athena analytical views and validation queries
 ├── frontend/            # React SPA dashboard (Dockerized)
 ├── backend/             # FastAPI application (Dockerized)
